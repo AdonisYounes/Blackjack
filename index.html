@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Blackjack</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <h1>Blackjack</h1>
+      <div class="bankroll" aria-live="polite">
+        Bankroll: $<span id="bankroll">500</span>
+      </div>
+    </header>
+
+    <!-- Two-column layout: left = game, right = chips -->
+    <main class="table" role="main">
+      <section class="play-area">
+        <!-- Controls -->
+        <section class="controls" aria-label="Betting controls">
+          <div class="bet-row">
+            <label for="bet">Bet</label>
+            <input id="bet" type="number" min="1" step="1" value="10" />
+            <div class="quick-bets" aria-label="Quick bet chips">
+              <button class="chip" data-chip="1">$1</button>
+              <button class="chip" data-chip="5">$5</button>
+              <button class="chip" data-chip="10">$10</button>
+              <button class="chip" data-chip="25">$25</button>
+              <button class="chip" data-chip="50">$50</button>
+              <button class="chip" data-chip="100">$100</button>
+            </div>
+            <button id="deal" class="primary">Deal</button>
+          </div>
+          <div class="action-row">
+            <button id="hit" disabled>Hit</button>
+            <button id="stand" disabled>Stand</button>
+            <button id="double" disabled>Double</button>
+            <button id="new-round" disabled>New Round</button>
+          </div>
+        </section>
+
+        <!-- Dealer -->
+        <section class="hand dealer" aria-label="Dealer hand">
+          <h2>Dealer <span class="total">(<span id="dealer-total">0</span>)</span></h2>
+          <ul id="dealer-cards" class="cards" aria-live="polite"></ul>
+        </section>
+
+        <!-- Player -->
+        <section class="hand player" aria-label="Player hand">
+          <h2>You <span class="total">(<span id="player-total">0</span>)</span></h2>
+          <ul id="player-cards" class="cards" aria-live="polite"></ul>
+        </section>
+
+        <!-- Messages -->
+        <section class="messages" aria-live="polite">
+          <p id="message">Place a bet and press Deal to begin.</p>
+        </section>
+      </section>
+
+      <!-- Right-side chip panel (isolated from play area) -->
+      <aside class="chip-panel" aria-label="Chip panel">
+        <div class="panel-header">Chips</div>
+        <div id="dealer-tray" class="chip-tray dealer-tray" title="Dealer tray"></div>
+        <div id="pot" class="chip-pot" title="Pot"></div>
+        <div id="player-tray" class="chip-tray player-tray" title="Your tray">
+          <div class="tray-label">Bankroll: $<span id="bankroll-tray">500</span></div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="site-footer">
+      <small>Dealer hits to 16 and stands on 17. Blackjacks pay 3:2. No splits.</small>
+    </footer>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
