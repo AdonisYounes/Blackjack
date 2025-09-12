@@ -1,4 +1,4 @@
-// Blackjack with right-panel chip system + smoother animations
+// Blackjack with right-panel chip system + persistent pot + smooth animations
 (function(){
   // ----- State -----
   let deck = [];
@@ -129,7 +129,7 @@
     playerHand.push(draw());
     if(handTotal(playerHand) > 21){
       holeCardRevealed = true;
-      BlackjackFX.payoutToDealer(bet);
+      BlackjackFX.payoutToDealer();
       endRound('Bust! You lose.');
     }else{
       setMessage('Hit again or Stand.');
@@ -144,10 +144,10 @@
     if(!roundActive || playerHand.length !== 2) return;
     if(bankroll < bet){ setMessage('Not enough bankroll to double.'); return; }
     bankroll -= bet; bet *= 2; syncBankrollUI();
-    BlackjackFX.addToPot(bet/2); // move extra stake into pot & keep it there
+    BlackjackFX.addToPot(Math.floor(bet/2)); // move extra stake into pot & keep it there
     playerHand.push(draw()); render();
     if(handTotal(playerHand) > 21){
-      holeCardRevealed = true; BlackjackFX.payoutToDealer(bet); endRound('You busted after doubling.'); return;
+      holeCardRevealed = true; BlackjackFX.payoutToDealer(); endRound('You busted after doubling.'); return;
     }
     holeCardRevealed = true; dealerPlay();
   }
@@ -166,44 +166,44 @@
       const pBJ=isBlackjack(playerHand), dBJ=isBlackjack(dealerHand);
       if(pBJ && dBJ){
         bankroll += bet; syncBankrollUI();
-        BlackjackFX.refundToPlayer(bet);
+        BlackjackFX.refundToPlayer();
         endRound('Push: both have Blackjack.');
         return;
       }
       if(pBJ){
-        const total = bet + Math.floor(bet*1.5); // return + payout
-        bankroll += total; syncBankrollUI();
-        BlackjackFX.payoutToPlayer(total);
-        endRound(`Blackjack! You win $${Math.floor(bet*1.5)}.`);
+        const payout = Math.floor(bet*1.5); // winnings on top of stake already in pot
+        bankroll += bet + payout; syncBankrollUI();
+        BlackjackFX.addHouseBonus(payout).then(()=> BlackjackFX.payoutToPlayer());
+        endRound(`Blackjack! You win $${payout}.`);
         return;
       }
       if(dBJ){
-        BlackjackFX.payoutToDealer(bet);
+        BlackjackFX.payoutToDealer();
         endRound('Dealer has Blackjack. You lose.');
         return;
       }
     }
 
-    if(p>21){ BlackjackFX.payoutToDealer(bet); endRound('Bust! You lose.'); return; }
+    if(p>21){ BlackjackFX.payoutToDealer(); endRound('Bust! You lose.'); return; }
     if(d>21){
-      const total = bet*2;
-      bankroll += total; syncBankrollUI();
-      BlackjackFX.payoutToPlayer(total);
+      const winnings = bet; // stake already in pot; add another equal amount
+      bankroll += bet*2; syncBankrollUI();
+      BlackjackFX.addHouseBonus(winnings).then(()=> BlackjackFX.payoutToPlayer());
       endRound('Dealer busts. You win!');
       return;
     }
 
     if(p>d){
-      const total = bet*2;
-      bankroll += total; syncBankrollUI();
-      BlackjackFX.payoutToPlayer(total);
+      const winnings = bet;
+      bankroll += bet*2; syncBankrollUI();
+      BlackjackFX.addHouseBonus(winnings).then(()=> BlackjackFX.payoutToPlayer());
       endRound('You win!');
     } else if(p<d){
-      BlackjackFX.payoutToDealer(bet);
+      BlackjackFX.payoutToDealer();
       endRound('You lose.');
     } else {
       bankroll += bet; syncBankrollUI();
-      BlackjackFX.refundToPlayer(bet);
+      BlackjackFX.refundToPlayer();
       endRound('Push. Bet returned.');
     }
   }
@@ -218,6 +218,7 @@
     bet = clampBet(parseInt(elBet.value || '10',10));
     setMessage('Place a bet and press Deal to begin.');
     playerHand=[]; dealerHand=[]; holeCardRevealed=false;
+    BlackjackFX.resetPot();
     render();
   }
 
@@ -233,9 +234,10 @@
     if(bet<=0){ setMessage('Enter a valid bet greater than $0.'); return; }
     if(bet>bankroll){ setMessage('Bet exceeds bankroll.'); return; }
     bankroll -= bet; syncBankrollUI();
-    BlackjackFX.resetPot();           // ensure pot is empty
-    BlackjackFX.addToPot(bet);        // chips go to pot and stay there
-    startRound();
+
+    // Keep chips IN the pot during the round
+    BlackjackFX.resetPot();        // clear leftovers from previous round
+    BlackjackFX.addToPot(bet).then(()=> startRound());
   });
   elHit?.addEventListener('click', playerHit);
   elStand?.addEventListener('click', playerStand);
@@ -270,110 +272,96 @@ const BlackjackFX = (() => {
   const dealerTray = document.getElementById('dealer-tray');
 
   const DENOMS = [100, 50, 25, 10, 5, 1];
-  const CLASS_BY_DENOM = {1:'denom-1',5:'denom-5',10:'denom-10',25:'denom-25',50:'denom-50',100:'denom-100'};
+  const CLASS = {1:'denom-1',5:'denom-5',10:'denom-10',25:'denom-25',50:'denom-50',100:'denom-100'};
 
-  let potAmount = 0;
-  let potChips = []; // elements currently sitting in the pot
+  let potChips = []; // DOM nodes sitting in the pot
 
-  function center(el){
-    const r = el.getBoundingClientRect();
-    return {x:r.left + r.width/2, y:r.top + r.height/2};
-  }
-  function spawnAnimChip(denom, at){
-    const chip = document.createElement('div');
-    chip.className = `anim-chip ${CLASS_BY_DENOM[denom]||'denom-5'}`;
-    chip.textContent = `$${denom}`;
-    document.body.appendChild(chip);
-    chip.style.left = at.x + 'px';
-    chip.style.top  = at.y + 'px';
-    return chip;
-  }
-  function makeRestingChip(denom){
-    const c = document.createElement('div');
-    c.className = `chip-token ${CLASS_BY_DENOM[denom]||'denom-5'}`;
-    c.textContent = `$${denom}`;
-    return c;
-  }
-  function denomBreakdown(amount, maxPerDenom=12){
-    let left = Math.max(0, amount|0), out = [];
+  const center = el => { const r = el.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; };
+  const breakdown = amt => {
+    let a = Math.max(0, amt|0), out = [];
     for(const d of DENOMS){
-      const n = Math.min(maxPerDenom, Math.floor(left/d));
+      const n = Math.min(12, Math.floor(a/d));
       for(let i=0;i<n;i++) out.push(d);
-      left -= n*d;
+      a -= n*d;
     }
-    if(out.length===0 && amount>0) out.push(1);
+    if(out.length===0 && amt>0) out.push(1);
     return out;
-  }
+  };
 
-  function animateMove(el, from, to, opts={}){
+  function animChip(denom, from){
+    const el = document.createElement('div');
+    el.className = `anim-chip ${CLASS[denom]||'denom-5'}`;
+    el.textContent = `$${denom}`;
+    document.body.appendChild(el);
+    el.style.left = from.x+'px'; el.style.top = from.y+'px';
+    return el;
+  }
+  function token(denom){
+    const t = document.createElement('div');
+    t.className = `chip-token ${CLASS[denom]||'denom-5'}`;
+    t.textContent = `$${denom}`;
+    // jitter around center of pot
+    t.style.left = `calc(50% + ${(Math.random()-.5)*18}px)`;
+    t.style.top  = `calc(50% + ${(Math.random()-.5)*18}px)`;
+    return t;
+  }
+  function move(el, from, to, delay=0){
     const dist = Math.hypot(to.x-from.x, to.y-from.y);
-    const duration = Math.min(1000, Math.max(380, dist*0.8));
-    const delay = opts.delay || 0;
+    const dur = Math.min(1000, Math.max(380, dist*0.8));
     return el.animate(
       [
-        { transform:`translate(-50%,-50%) scale(.9)` },
-        { transform:`translate(${to.x - from.x - 50}px, ${to.y - from.y - 50}px) scale(1)` }
+        {transform:'translate(-50%,-50%) scale(.9)'},
+        {transform:`translate(${to.x-from.x-50}px, ${to.y-from.y-50}px) scale(1)`}
       ],
-      { duration, delay, easing:'cubic-bezier(.22,.7,.18,1)', fill:'forwards' }
+      {duration:dur, delay, easing:'cubic-bezier(.22,.7,.18,1)', fill:'forwards'}
     ).finished;
   }
 
-  function settleIntoPot(denom, fromEl){
+  function settleIntoPot(denom, fromEl, delay){
     const from = center(fromEl);
     const to = center(potEl);
-    const chipAnim = spawnAnimChip(denom, from);
-    return animateMove(chipAnim, from, to).then(()=>{
-      // turn into resting token INSIDE the pot
-      const token = makeRestingChip(denom);
-      const jitter = () => (Math.random()-.5)*18;
-      token.style.left = `calc(50% + ${jitter()}px)`;
-      token.style.top  = `calc(50% + ${jitter()}px)`;
-      token.style.transform = 'translate(-50%,-50%)';
-      potEl.appendChild(token);
-      potChips.push(token);
-      chipAnim.remove();
+    const c = animChip(denom, from);
+    return move(c, from, to, delay).then(()=>{
+      const t = token(denom);
+      t.style.transform = 'translate(-50%,-50%)';
+      potEl.appendChild(t);
+      potChips.push(t);
+      c.remove(); // keep token in pot
     });
   }
 
   function movePotChipsTo(targetEl){
     const target = center(targetEl);
-    const promises = potChips.map((token,i)=>{
-      // lift token to page coordinates, then animate
-      const r = token.getBoundingClientRect();
-      const from = {x: r.left + r.width/2, y: r.top + r.height/2};
-      const anim = spawnAnimChip(parseInt(token.textContent.replace('$',''),10), from);
-      token.remove(); // remove from pot
-      return animateMove(anim, from, target, {delay: i*50}).then(()=>{ anim.remove(); });
+    const tasks = potChips.map((t,i)=>{
+      const r = t.getBoundingClientRect();
+      const from = {x:r.left+r.width/2, y:r.top+r.height/2};
+      const denom = parseInt(t.textContent.replace('$',''),10) || 5;
+      const c = animChip(denom, from);
+      t.remove();
+      return move(c, from, target, i*50).then(()=> c.remove());
     });
     potChips = [];
-    potAmount = 0;
-    return Promise.all(promises);
+    return Promise.all(tasks);
   }
 
-  function topUpFromHouse(extraAmount){
-    // spawn extra chips at pot center (house matches / blackjack bonus)
-    const parts = denomBreakdown(extraAmount);
+  function addBonusToPot(amount){
+    const parts = breakdown(amount);
     const to = center(potEl);
-    const promises = parts.map((d,i)=>{
-      const chip = spawnAnimChip(d, {x:to.x, y:to.y});
-      // quick "pop" in place
-      return chip.animate(
+    const tasks = parts.map((d,i)=>{
+      const c = animChip(d, to); // spawn at pot center (pop-in)
+      return c.animate(
         [{transform:'translate(-50%,-50%) scale(.6)', opacity:.0},
-         {transform:'translate(-50%,-50%) scale(1)', opacity:1}],
+         {transform:'translate(-50%,-50%) scale(1)',  opacity:1}],
         {duration:200, delay:i*30, easing:'ease-out', fill:'forwards'}
       ).finished.then(()=>{
-        const token = makeRestingChip(d);
-        const jitter = () => (Math.random()-.5)*18;
-        token.style.left = `calc(50% + ${jitter()}px)`;
-        token.style.top  = `calc(50% + ${jitter()}px)`;
-        token.style.transform = 'translate(-50%,-50%)';
-        potEl.appendChild(token);
-        potChips.push(token);
-        chip.remove();
+        const t = token(d);
+        t.style.transform = 'translate(-50%,-50%)';
+        potEl.appendChild(t);
+        potChips.push(t);
+        c.remove();
       });
     });
-    potAmount += extraAmount;
-    return Promise.all(promises);
+    return Promise.all(tasks);
   }
 
   /* ===== Public API ===== */
@@ -381,29 +369,17 @@ const BlackjackFX = (() => {
     resetPot(){
       potChips.forEach(c=>c.remove());
       potChips = [];
-      potAmount = 0;
     },
     addToPot(amount){
-      const parts = denomBreakdown(amount);
-      potAmount += amount;
-      const from = center(playerTray);
-      // chain animations slightly staggered
-      return Promise.all(parts.map((d,i)=> settleIntoPot(d, playerTray, i*60)));
+      const parts = breakdown(amount);
+      return Promise.all(parts.map((d,i)=> settleIntoPot(d, playerTray, i*50)));
     },
-    payoutToPlayer(totalAmount){
-      if(totalAmount > potAmount){
-        // add the house's share/bonus to pot first
-        topUpFromHouse(totalAmount - potAmount).then(()=> movePotChipsTo(playerTray));
-      } else {
-        movePotChipsTo(playerTray);
-      }
-      document.querySelector('.chip-panel')?.classList.add('win-glow');
-      setTimeout(()=>document.querySelector('.chip-panel')?.classList.remove('win-glow'), 850);
+    addHouseBonus(amount){
+      if(amount <= 0) return Promise.resolve();
+      return addBonusToPot(amount);
     },
-    refundToPlayer(){ movePotChipsTo(playerTray); },
-    payoutToDealer(){ movePotChipsTo(dealerTray);
-      document.querySelector('.chip-panel')?.classList.add('loss-pulse');
-      setTimeout(()=>document.querySelector('.chip-panel')?.classList.remove('loss-pulse'), 650);
-    }
+    refundToPlayer(){ return movePotChipsTo(playerTray); },
+    payoutToPlayer(){ return movePotChipsTo(playerTray); },
+    payoutToDealer(){ return movePotChipsTo(dealerTray); }
   };
 })();

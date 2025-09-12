@@ -30,18 +30,14 @@ body{
   background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0));
 }
 .site-footer{
-  flex-direction:column;     /* stack text and rights line */
+  flex-direction:column;
   align-items:center;
   gap:.4rem;
   border-top:1px solid #0a2b22;
   border-bottom:none;
   color:var(--muted);
 }
-.rights{
-  font-size:.85rem;
-  color:var(--muted);
-  text-align:center;
-}
+.rights{font-size:.85rem; color:var(--muted); text-align:center}
 .site-header h1{margin:0; letter-spacing:.5px}
 .bankroll{font-weight:700; background:rgba(255,255,255,.06); padding:.35rem .6rem; border-radius:.6rem}
 
@@ -85,17 +81,12 @@ button:disabled{opacity:.5; cursor:not-allowed; filter:none}
 .chip{
   background:radial-gradient(circle at 30% 30%, #fff3, #0000),
              conic-gradient(from 0deg, var(--accent), #ffc34d, #ffe08a, var(--accent));
-  color:#2b2b2b;
-  font-weight:800;
-  border:none;
-  box-shadow:inset 0 0 0 2px #0003, var(--shadow);
+  color:#2b2b2b; font-weight:800; border:none; box-shadow:inset 0 0 0 2px #0003, var(--shadow);
 }
 .primary{
   background:linear-gradient(180deg, #ffd166, #f4b133);
   color:#1e1e1e;
-  font-weight:800;
-  letter-spacing:.3px;
-  border:none
+  font-weight:800; letter-spacing:.3px; border:none
 }
 .primary:hover{filter:saturate(1.1)}
 
@@ -160,7 +151,7 @@ button:disabled{opacity:.5; cursor:not-allowed; filter:none}
   box-shadow:var(--shadow);
   display:grid;
   grid-template-rows:auto 1fr 1fr 1fr;
-  gap:.6rem;
+  gap:.8rem;
   align-items:center;
   padding:.8rem .8rem 1rem;
 }
@@ -189,4 +180,36 @@ button:disabled{opacity:.5; cursor:not-allowed; filter:none}
   overflow:hidden;
 }
 
-/* Animated chips and denominations (omitted here for brevity if unchanged from previous version) */
+/* ===== Animated chips + resting tokens ===== */
+.anim-chip{
+  position:fixed;
+  width:42px; height:42px;
+  border-radius:999px; pointer-events:none;
+  display:grid; place-items:center; font-weight:900; font-size:.8rem; color:#111;
+  border:3px solid #fff; box-shadow:0 6px 14px rgba(0,0,0,.35);
+  transform:translate(-50%,-50%);
+}
+.chip-token{
+  position:absolute; width:40px; height:40px; border-radius:999px;
+  display:grid; place-items:center; font-weight:900; font-size:.78rem; color:#111;
+  border:3px solid #fff; box-shadow:0 4px 10px rgba(0,0,0,.35);
+  transform:translate(-50%,-50%);
+}
+
+/* Denomination colorways */
+.denom-1  { background: radial-gradient(circle at 50% 50%, #fff, #f0f0f0 60%, #e5e5e5), conic-gradient(#ffffff, #f7f7f7); }
+.denom-5  { background: radial-gradient(circle at 50% 50%, #ff6b6b, #e25555 60%, #b14444), conic-gradient(#ff6b6b, #e25555); }
+.denom-10 { background: radial-gradient(circle at 50% 50%, #3498db, #277db6 60%, #1f5f8b), conic-gradient(#3498db, #277db6); }
+.denom-25 { background: radial-gradient(circle at 50% 50%, #2ecc71, #22b863 60%, #1d8f4d), conic-gradient(#2ecc71, #22b863); }
+.denom-50 { background: radial-gradient(circle at 50% 50%, #2c2c2c, #1f1f1f 60%, #111), conic-gradient(#2c2c2c, #1f1f1f); color:#eee; }
+.denom-100{ background: radial-gradient(circle at 50% 50%, #8e44ad, #71388b 60%, #5b2f70), conic-gradient(#8e44ad, #71388b); color:#f5eaff; }
+
+/* Feedback on panel */
+@keyframes table-glow{
+  0%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
+  50%{box-shadow:inset 0 0 0 9999px rgba(255,209,102,.08)}
+  100%{box-shadow:inset 0 0 0 rgba(0,0,0,0)}
+}
+.win-glow{animation:table-glow 800ms ease}
+@keyframes loss-pulse{0%{filter:none}50%{filter:grayscale(.4) brightness(.9)}100%{filter:none}}
+.loss-pulse{animation:loss-pulse 600ms ease}
