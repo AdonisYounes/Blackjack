@@ -31,5 +31,5 @@ Play directly in the browser and enjoy smooth chip animations, a clean casino-st
 Clone the repository and open `index.html` in a browser:
 
 ```bash
-git clone https://github.com/<your-username>/Blackjack.git
+git clone https://github.com/<AdonisYounes>/Blackjack.git
 cd Blackjack
